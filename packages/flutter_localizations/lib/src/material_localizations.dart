@@ -517,7 +517,7 @@ class _MaterialLocalizationsDelegate extends LocalizationsDelegate<MaterialLocal
     'no', // Norwegian
     'pl', // Polish
     'ps', // Pashto
-    'pt', // Portugese
+    'pt', // Portuguese
     'ro', // Romanian
     'ru', // Russian
     'th', // Thai
@@ -525,6 +525,7 @@ class _MaterialLocalizationsDelegate extends LocalizationsDelegate<MaterialLocal
     'ur', // Urdu
     'zh', // Chinese (simplified)
   ];
+
 
   @override
   bool isSupported(Locale locale) => _supportedLanguages.contains(locale.languageCode);
