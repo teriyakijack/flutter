@@ -2,8 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import 'dart:ui' show SemanticsFlag, SemanticsAction;
-
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/widgets.dart';
@@ -14,7 +12,7 @@ import '../rendering/mock_canvas.dart';
 import '../rendering/recording_canvas.dart';
 import '../widgets/semantics_tester.dart';
 
-Widget boilerplate({ Widget child, TextDirection textDirection: TextDirection.ltr }) {
+Widget boilerplate({ Widget child, TextDirection textDirection = TextDirection.ltr }) {
   return new Localizations(
     locale: const Locale('en', 'US'),
     delegates: const <LocalizationsDelegate<dynamic>>[
@@ -54,7 +52,7 @@ Widget buildFrame({
     Key tabBarKey,
     List<String> tabs,
     String value,
-    bool isScrollable: false,
+    bool isScrollable = false,
     Color indicatorColor,
   }) {
   return boilerplate(
@@ -74,7 +72,7 @@ Widget buildFrame({
 typedef Widget TabControllerFrameBuilder(BuildContext context, TabController controller);
 
 class TabControllerFrame extends StatefulWidget {
-  const TabControllerFrame({ this.length, this.initialIndex: 0, this.builder });
+  const TabControllerFrame({ this.length, this.initialIndex = 0, this.builder });
 
   final int length;
   final int initialIndex;
@@ -291,7 +289,7 @@ void main() {
     }
 
     StateMarkerState findStateMarkerState(String name) {
-      return tester.state(find.widgetWithText(StateMarker, name));
+      return tester.state(find.widgetWithText(StateMarker, name, skipOffstage: false));
     }
 
     await tester.pumpWidget(builder());
@@ -1362,24 +1360,28 @@ void main() {
               rect: TestSemantics.fullScreen,
               children: <TestSemantics>[
                 new TestSemantics(
-                  id: 3,
-                  nextNodeId: 4,
-                  actions: SemanticsAction.tap.index,
-                  flags: SemanticsFlag.isSelected.index,
-                  label: 'TAB #0\nTab 1 of 2',
-                  rect: new Rect.fromLTRB(0.0, 0.0, 108.0, kTextTabBarHeight),
-                  transform: new Matrix4.translationValues(0.0, 276.0, 0.0),
-                ),
-                new TestSemantics(
-                  id: 4,
-                  previousNodeId: 3,
-                  actions: SemanticsAction.tap.index,
-                  label: 'TAB #1\nTab 2 of 2',
-                  rect: new Rect.fromLTRB(0.0, 0.0, 108.0, kTextTabBarHeight),
-                  transform: new Matrix4.translationValues(108.0, 276.0, 0.0),
-                ),
-              ]
-            )
+                    id: 3,
+                    rect: TestSemantics.fullScreen,
+                    children: <TestSemantics>[
+                      new TestSemantics(
+                        id: 4,
+                        actions: SemanticsAction.tap.index,
+                        flags: SemanticsFlag.isSelected.index,
+                        label: 'TAB #0\nTab 1 of 2',
+                        rect: new Rect.fromLTRB(0.0, 0.0, 108.0, kTextTabBarHeight),
+                        transform: new Matrix4.translationValues(0.0, 276.0, 0.0),
+                      ),
+                      new TestSemantics(
+                        id: 5,
+                        actions: SemanticsAction.tap.index,
+                        label: 'TAB #1\nTab 2 of 2',
+                        rect: new Rect.fromLTRB(0.0, 0.0, 108.0, kTextTabBarHeight),
+                        transform: new Matrix4.translationValues(108.0, 276.0, 0.0),
+                      ),
+                    ]
+                )
+              ],
+            ),
           ],
         ),
       ],
@@ -1621,24 +1623,28 @@ void main() {
               rect: TestSemantics.fullScreen,
               children: <TestSemantics>[
                 new TestSemantics(
-                  id: 3,
-                  nextNodeId: 4,
-                  actions: SemanticsAction.tap.index,
-                  flags: SemanticsFlag.isSelected.index,
-                  label: 'Semantics override 0\nTab 1 of 2',
-                  rect: new Rect.fromLTRB(0.0, 0.0, 108.0, kTextTabBarHeight),
-                  transform: new Matrix4.translationValues(0.0, 276.0, 0.0),
-                ),
-                new TestSemantics(
-                  id: 4,
-                  previousNodeId: 3,
-                  actions: SemanticsAction.tap.index,
-                  label: 'Semantics override 1\nTab 2 of 2',
-                  rect: new Rect.fromLTRB(0.0, 0.0, 108.0, kTextTabBarHeight),
-                  transform: new Matrix4.translationValues(108.0, 276.0, 0.0),
-                ),
-              ]
-            )
+                    id: 3,
+                    rect: TestSemantics.fullScreen,
+                    children: <TestSemantics>[
+                      new TestSemantics(
+                        id: 4,
+                        actions: SemanticsAction.tap.index,
+                        flags: SemanticsFlag.isSelected.index,
+                        label: 'Semantics override 0\nTab 1 of 2',
+                        rect: new Rect.fromLTRB(0.0, 0.0, 108.0, kTextTabBarHeight),
+                        transform: new Matrix4.translationValues(0.0, 276.0, 0.0),
+                      ),
+                      new TestSemantics(
+                        id: 5,
+                        actions: SemanticsAction.tap.index,
+                        label: 'Semantics override 1\nTab 2 of 2',
+                        rect: new Rect.fromLTRB(0.0, 0.0, 108.0, kTextTabBarHeight),
+                        transform: new Matrix4.translationValues(108.0, 276.0, 0.0),
+                      ),
+                    ]
+                )
+              ],
+            ),
           ],
         ),
       ],

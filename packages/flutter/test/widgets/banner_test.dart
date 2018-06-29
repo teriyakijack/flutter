@@ -248,6 +248,7 @@ void main() {
   });
 
   testWidgets('Banner widget', (WidgetTester tester) async {
+    debugDisableShadows = false;
     await tester.pumpWidget(
       const Directionality(
         textDirection: TextDirection.ltr,
@@ -255,26 +256,29 @@ void main() {
       ),
     );
     expect(find.byType(CustomPaint), paints
-      ..save
+      ..save()
       ..translate(x: 800.0, y: 0.0)
       ..rotate(angle: math.pi / 4.0)
       ..rect(rect: new Rect.fromLTRB(-40.0, 28.0, 40.0, 40.0), color: const Color(0x7f000000), hasMaskFilter: true)
       ..rect(rect: new Rect.fromLTRB(-40.0, 28.0, 40.0, 40.0), color: const Color(0xa0b71c1c), hasMaskFilter: false)
       ..paragraph(offset: const Offset(-40.0, 29.0))
-      ..restore
+      ..restore()
     );
+    debugDisableShadows = true;
   });
 
   testWidgets('Banner widget in MaterialApp', (WidgetTester tester) async {
+    debugDisableShadows = false;
     await tester.pumpWidget(new MaterialApp(home: const Placeholder()));
     expect(find.byType(CheckedModeBanner), paints
-      ..save
+      ..save()
       ..translate(x: 800.0, y: 0.0)
       ..rotate(angle: math.pi / 4.0)
       ..rect(rect: new Rect.fromLTRB(-40.0, 28.0, 40.0, 40.0), color: const Color(0x7f000000), hasMaskFilter: true)
       ..rect(rect: new Rect.fromLTRB(-40.0, 28.0, 40.0, 40.0), color: const Color(0xa0b71c1c), hasMaskFilter: false)
       ..paragraph(offset: const Offset(-40.0, 29.0))
-      ..restore
+      ..restore()
     );
+    debugDisableShadows = true;
   });
 }

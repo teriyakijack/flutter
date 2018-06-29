@@ -42,7 +42,7 @@ abstract class InputBorder extends ShapeBorder {
   /// substitutes its own, using [copyWith], based on the current theme and
   /// [InputDecorator.isFocused].
   const InputBorder({
-    this.borderSide: BorderSide.none,
+    this.borderSide = BorderSide.none,
   }) : assert(borderSide != null);
 
   /// Defines the border line's color and weight.
@@ -73,8 +73,8 @@ abstract class InputBorder extends ShapeBorder {
   @override
   void paint(Canvas canvas, Rect rect, {
       double gapStart,
-      double gapExtent: 0.0,
-      double gapPercentage: 0.0,
+      double gapExtent = 0.0,
+      double gapPercentage = 0.0,
       TextDirection textDirection,
   });
 }
@@ -108,15 +108,16 @@ class _NoInputBorder extends InputBorder {
   @override
   void paint(Canvas canvas, Rect rect, {
       double gapStart,
-      double gapExtent: 0.0,
-      double gapPercentage: 0.0,
+      double gapExtent = 0.0,
+      double gapPercentage = 0.0,
       TextDirection textDirection,
   }) {
     // Do not paint.
   }
 }
 
-/// Draws a horizontal line at the bottom of an [InputDecorator]'s container.
+/// Draws a horizontal line at the bottom of an [InputDecorator]'s container and
+/// defines the container's shape.
 ///
 /// The input decorator's "container" is the optionally filled area above the
 /// decorator's helper, error, and counter.
@@ -133,16 +134,39 @@ class UnderlineInputBorder extends InputBorder {
   /// null). Applications typically do not specify a [borderSide] parameter
   /// because the input decorator substitutes its own, using [copyWith], based
   /// on the current theme and [InputDecorator.isFocused].
+  ///
+  /// The [borderRadius] parameter defaults to a value where the top left
+  /// and right corners have a circular radius of 4.0. The [borderRadius]
+  /// parameter must not be null.
   const UnderlineInputBorder({
-    BorderSide borderSide: BorderSide.none,
-  }) : super(borderSide: borderSide);
+    BorderSide borderSide = BorderSide.none,
+    this.borderRadius = const BorderRadius.only(
+      topLeft: const Radius.circular(4.0),
+      topRight: const Radius.circular(4.0),
+    ),
+  }) : assert(borderRadius != null),
+       super(borderSide: borderSide);
+
+  /// The radii of the border's rounded rectangle corners.
+  ///
+  /// When this border is used with a filled input decorator, see
+  /// [InputDecoration.filled], the border radius defines the shape
+  /// of the background fill as well as the bottom left and right
+  /// edges of the underline itself.
+  ///
+  /// By default the top right and top left corners have a circular radius
+  /// of 4.0.
+  final BorderRadius borderRadius;
 
   @override
   bool get isOutline => false;
 
   @override
-  UnderlineInputBorder copyWith({ BorderSide borderSide }) {
-    return new UnderlineInputBorder(borderSide: borderSide ?? this.borderSide);
+  UnderlineInputBorder copyWith({ BorderSide borderSide, BorderRadius borderRadius }) {
+    return new UnderlineInputBorder(
+      borderSide: borderSide ?? this.borderSide,
+      borderRadius: borderRadius ?? this.borderRadius,
+    );
   }
 
   @override
@@ -163,7 +187,7 @@ class UnderlineInputBorder extends InputBorder {
 
   @override
   Path getOuterPath(Rect rect, { TextDirection textDirection }) {
-    return new Path()..addRect(rect);
+    return new Path()..addRRect(borderRadius.resolve(textDirection).toRRect(rect));
   }
 
   @override
@@ -193,10 +217,12 @@ class UnderlineInputBorder extends InputBorder {
   @override
   void paint(Canvas canvas, Rect rect, {
       double gapStart,
-      double gapExtent: 0.0,
-      double gapPercentage: 0.0,
+      double gapExtent = 0.0,
+      double gapPercentage = 0.0,
       TextDirection textDirection,
   }) {
+    if (borderRadius.bottomLeft != Radius.zero || borderRadius.bottomRight != Radius.zero)
+      canvas.clipPath(getOuterPath(rect, textDirection: textDirection));
     canvas.drawLine(rect.bottomLeft, rect.bottomRight, borderSide.toPaint());
   }
 
@@ -235,13 +261,14 @@ class OutlineInputBorder extends InputBorder {
   /// because the input decorator substitutes its own, using [copyWith], based
   /// on the current theme and [InputDecorator.isFocused].
   ///
-  /// If [borderRadius] is null (the default) then the border's corners
-  /// are drawn with a radius of 4 logical pixels. The corner radii must be
-  /// circular, i.e. their [Radius.x] and [Radius.y] values must be the same.
+  /// The [borderRadius] parameter defaults to a value where all four
+  /// corners have a circular radius of 4.0. The [borderRadius] parameter
+  /// must not be null and the corner radii must be circular, i.e. their
+  /// [Radius.x] and [Radius.y] values must be the same.
   const OutlineInputBorder({
-    BorderSide borderSide: BorderSide.none,
-    this.borderRadius: const BorderRadius.all(const Radius.circular(4.0)),
-    this.gapPadding: 4.0,
+    BorderSide borderSide = BorderSide.none,
+    this.borderRadius = const BorderRadius.all(const Radius.circular(4.0)),
+    this.gapPadding = 4.0,
   }) : assert(borderRadius != null),
        assert(gapPadding != null && gapPadding >= 0.0),
        super(borderSide: borderSide);
@@ -410,8 +437,8 @@ class OutlineInputBorder extends InputBorder {
   @override
   void paint(Canvas canvas, Rect rect, {
       double gapStart,
-      double gapExtent: 0.0,
-      double gapPercentage: 0.0,
+      double gapExtent = 0.0,
+      double gapPercentage = 0.0,
       TextDirection textDirection,
   }) {
     assert(gapExtent != null);

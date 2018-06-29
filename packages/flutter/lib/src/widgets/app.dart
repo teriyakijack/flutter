@@ -5,7 +5,6 @@
 import 'dart:async';
 import 'dart:ui' as ui show window;
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/rendering.dart';
 
 import 'banner.dart';
@@ -73,23 +72,23 @@ class WidgetsApp extends StatefulWidget {
     this.navigatorKey,
     this.onGenerateRoute,
     this.onUnknownRoute,
-    this.navigatorObservers: const <NavigatorObserver>[],
+    this.navigatorObservers = const <NavigatorObserver>[],
     this.initialRoute,
     this.builder,
-    this.title: '',
+    this.title = '',
     this.onGenerateTitle,
     this.textStyle,
     @required this.color,
     this.locale,
     this.localizationsDelegates,
     this.localeResolutionCallback,
-    this.supportedLocales: const <Locale>[const Locale('en', 'US')],
-    this.showPerformanceOverlay: false,
-    this.checkerboardRasterCacheImages: false,
-    this.checkerboardOffscreenLayers: false,
-    this.showSemanticsDebugger: false,
-    this.debugShowWidgetInspector: false,
-    this.debugShowCheckedModeBanner: true,
+    this.supportedLocales = const <Locale>[const Locale('en', 'US')],
+    this.showPerformanceOverlay = false,
+    this.checkerboardRasterCacheImages = false,
+    this.checkerboardOffscreenLayers = false,
+    this.showSemanticsDebugger = false,
+    this.debugShowWidgetInspector = false,
+    this.debugShowCheckedModeBanner = true,
     this.inspectorSelectButtonBuilder,
   }) : assert(navigatorObservers != null),
        assert(onGenerateRoute != null || navigatorKey == null),
@@ -602,7 +601,7 @@ class _WidgetsAppState extends State<WidgetsApp> implements WidgetsBindingObserv
     if (widget.onGenerateTitle != null) {
       title = new Builder(
         // This Builder exists to provide a context below the Localizations widget.
-        // The onGenerateCallback() can refer to Localizations via its context
+        // The onGenerateTitle callback can refer to Localizations via its context
         // parameter.
         builder: (BuildContext context) {
           final String title = widget.onGenerateTitle(context);

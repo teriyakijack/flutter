@@ -270,12 +270,12 @@ class RenderFlex extends RenderBox with ContainerRenderObjectMixin<RenderBox, Fl
   /// start of the main axis and the center of the cross axis.
   RenderFlex({
     List<RenderBox> children,
-    Axis direction: Axis.horizontal,
-    MainAxisSize mainAxisSize: MainAxisSize.max,
-    MainAxisAlignment mainAxisAlignment: MainAxisAlignment.start,
-    CrossAxisAlignment crossAxisAlignment: CrossAxisAlignment.center,
+    Axis direction = Axis.horizontal,
+    MainAxisSize mainAxisSize = MainAxisSize.max,
+    MainAxisAlignment mainAxisAlignment = MainAxisAlignment.start,
+    CrossAxisAlignment crossAxisAlignment = CrossAxisAlignment.center,
     TextDirection textDirection,
-    VerticalDirection verticalDirection: VerticalDirection.down,
+    VerticalDirection verticalDirection = VerticalDirection.down,
     TextBaseline textBaseline,
   }) : assert(direction != null),
        assert(mainAxisAlignment != null),
@@ -681,7 +681,7 @@ class RenderFlex extends RenderBox with ContainerRenderObjectMixin<RenderBox, Fl
             if (node != null) {
               information.writeln('The nearest ancestor providing an unbounded width constraint is:');
               information.write('  ');
-              information.write(node.toStringShallow(joiner: '\n  '));
+              information.writeln(node.toStringShallow(joiner: '\n  '));
             }
             information.writeln('See also: https://flutter.io/layout/');
             addendum = information.toString();

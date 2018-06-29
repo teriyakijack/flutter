@@ -8,6 +8,7 @@ import 'package:meta/meta.dart';
 
 import 'base/context.dart';
 import 'base/file_system.dart';
+import 'base/io.dart' show SocketException;
 import 'base/logger.dart';
 import 'base/net.dart';
 import 'base/os.dart';
@@ -27,6 +28,10 @@ class Cache {
       _artifacts.addAll(artifacts);
     }
   }
+
+  static const List<String> _hostsBlockedInChina = const <String> [
+    'storage.googleapis.com',
+  ];
 
   final Directory _rootOverride;
   final List<CachedArtifact> _artifacts = <CachedArtifact>[];
@@ -69,7 +74,7 @@ class Cache {
     if (!_lockEnabled)
       return null;
     assert(_lock == null);
-    _lock = await fs.file(fs.path.join(flutterRoot, 'bin', 'cache', 'lockfile')).open(mode: FileMode.WRITE);
+    _lock = await fs.file(fs.path.join(flutterRoot, 'bin', 'cache', 'lockfile')).open(mode: FileMode.WRITE); // ignore: deprecated_member_use
     bool locked = false;
     bool printed = false;
     while (!locked) {
@@ -164,6 +169,19 @@ class Cache {
     return fs.file(fs.path.join(getRoot().path, '$artifactName.stamp'));
   }
 
+  /// Returns `true` if either [file] is older than the tools stamp or if
+  /// [file] doesn't exist.
+  bool fileOlderThanToolsStamp(File file) {
+    if (!file.existsSync()) {
+      return true;
+    }
+    final File flutterToolsStamp = getStampFileFor('flutter_tools');
+    return flutterToolsStamp.existsSync() &&
+        flutterToolsStamp
+            .lastModifiedSync()
+            .isAfter(file.lastModifiedSync());
+  }
+
   bool isUpToDate() => _artifacts.every((CachedArtifact artifact) => artifact.isUpToDate());
 
   Future<String> getThirdPartyFile(String urlStr, String serviceName) async {
@@ -190,9 +208,21 @@ class Cache {
   Future<Null> updateAll() async {
     if (!_lockEnabled)
       return null;
-    for (CachedArtifact artifact in _artifacts) {
-      if (!artifact.isUpToDate())
-        await artifact.update();
+    try {
+      for (CachedArtifact artifact in _artifacts) {
+        if (!artifact.isUpToDate())
+          await artifact.update();
+      }
+    } on SocketException catch (e) {
+      if (_hostsBlockedInChina.contains(e.address?.host)) {
+        printError(
+          'Failed to retrieve Flutter tool depedencies: ${e.message}.\n'
+          "If you're in China, please follow "
+          'https://github.com/flutter/flutter/wiki/Using-Flutter-in-China',
+          emphasis: true,
+        );
+      }
+      rethrow;
     }
   }
 }

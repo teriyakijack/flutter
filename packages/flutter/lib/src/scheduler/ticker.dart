@@ -155,8 +155,9 @@ class Ticker {
     }());
     assert(_startTime == null);
     _future = new TickerFuture._();
-    if (shouldScheduleTick)
+    if (shouldScheduleTick) {
       scheduleTick();
+    }
     if (SchedulerBinding.instance.schedulerPhase.index > SchedulerPhase.idle.index &&
         SchedulerBinding.instance.schedulerPhase.index < SchedulerPhase.postFrameCallbacks.index)
       _startTime = SchedulerBinding.instance.currentFrameTimeStamp;
@@ -177,7 +178,7 @@ class Ticker {
   ///
   /// By convention, this method is used by the object that receives the ticks
   /// (as opposed to the [TickerProvider] which created the ticker).
-  void stop({ bool canceled: false }) {
+  void stop({ bool canceled = false }) {
     if (!isActive)
       return;
 
@@ -216,7 +217,7 @@ class Ticker {
   /// * The ticker is not active ([start] has not been called).
   /// * The ticker is not ticking, e.g. because it is [muted] (see [isTicking]).
   @protected
-  bool get shouldScheduleTick => isTicking && !scheduled;
+  bool get shouldScheduleTick => !muted && isActive && !scheduled;
 
   void _tick(Duration timeStamp) {
     assert(isTicking);
@@ -237,8 +238,7 @@ class Ticker {
   ///
   /// This should only be called if [shouldScheduleTick] is true.
   @protected
-  void scheduleTick({ bool rescheduling: false }) {
-    assert(isTicking);
+  void scheduleTick({ bool rescheduling = false }) {
     assert(!scheduled);
     assert(shouldScheduleTick);
     _animationId = SchedulerBinding.instance.scheduleFrameCallback(_tick, rescheduling: rescheduling);
@@ -312,7 +312,7 @@ class Ticker {
   StackTrace _debugCreationStack;
 
   @override
-  String toString({ bool debugIncludeStack: false }) {
+  String toString({ bool debugIncludeStack = false }) {
     final StringBuffer buffer = new StringBuffer();
     buffer.write('$runtimeType(');
     assert(() {

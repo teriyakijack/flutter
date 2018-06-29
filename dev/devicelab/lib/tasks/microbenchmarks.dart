@@ -14,7 +14,7 @@ import 'package:flutter_devicelab/framework/ios.dart';
 import 'package:flutter_devicelab/framework/utils.dart';
 
 /// The maximum amount of time a single microbenchmark is allowed to take.
-const Duration _kBenchmarkTimeout = const Duration(minutes: 6);
+const Duration _kBenchmarkTimeout = const Duration(minutes: 10);
 
 /// Creates a device lab task that runs benchmarks in
 /// `dev/benchmarks/microbenchmarks` reports results to the dashboard.
@@ -23,7 +23,7 @@ TaskFunction createMicrobenchmarkTask() {
     final Device device = await devices.workingDevice;
     await device.unlock();
 
-    Future<Map<String, double>> _runMicrobench(String benchmarkPath, {bool previewDart2: true}) async {
+    Future<Map<String, double>> _runMicrobench(String benchmarkPath, {bool previewDart2 = true}) async {
       Future<Map<String, double>> _run() async {
         print('Running $benchmarkPath');
         final Directory appDir = dir(
@@ -86,9 +86,9 @@ TaskFunction createMicrobenchmarkTask() {
 }
 
 Future<Process> _startFlutter({
-  String command: 'run',
-  List<String> options: const <String>[],
-  bool canFail: false,
+  String command = 'run',
+  List<String> options = const <String>[],
+  bool canFail = false,
   Map<String, String> environment,
 }) {
   final List<String> args = <String>['run']..addAll(options);
@@ -126,12 +126,18 @@ Future<Map<String, double>> _readJsonResults(Process process) {
     if (line.contains(jsonEnd)) {
       jsonStarted = false;
       processWasKilledIntentionally = true;
+      // ignore: deprecated_member_use
       process.kill(ProcessSignal.SIGINT); // flutter run doesn't quit automatically
-      completer.complete(json.decode(jsonBuf.toString()));
+      final String jsonOutput = jsonBuf.toString();
+      try {
+        completer.complete(json.decode(jsonOutput));
+      } catch (ex) {
+        completer.completeError('Decoding JSON failed ($ex). JSON string was: $jsonOutput');
+      }
       return;
     }
 
-    if (jsonStarted)
+    if (jsonStarted && line.contains(jsonPrefix))
       jsonBuf.writeln(line.substring(line.indexOf(jsonPrefix) + jsonPrefix.length));
   });
 

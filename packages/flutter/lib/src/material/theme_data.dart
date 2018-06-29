@@ -5,9 +5,11 @@
 import 'dart:ui' show Color, hashValues;
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
 import 'button_theme.dart';
+import 'chip_theme.dart';
 import 'colors.dart';
 import 'ink_splash.dart';
 import 'ink_well.dart' show InteractiveInkFeatureFactory;
@@ -15,20 +17,7 @@ import 'input_decorator.dart';
 import 'slider_theme.dart';
 import 'typography.dart';
 
-/// Describes the contrast needs of a color.
-enum Brightness {
-  /// The color is dark and will require a light text color to achieve readable
-  /// contrast.
-  ///
-  /// For example, the color might be dark grey, requiring white text.
-  dark,
-
-  /// The color is light and will require a dark text color to achieve readable
-  /// contrast.
-  ///
-  /// For example, the color might be bright white, requiring black text.
-  light,
-}
+export 'package:flutter/services.dart' show Brightness;
 
 // Deriving these values is black magic. The spec claims that pressed buttons
 // have a highlight of 0x66999999, but that's clearly wrong. The videos in the
@@ -104,6 +93,7 @@ class ThemeData extends Diagnosticable {
     Color indicatorColor,
     Color hintColor,
     Color errorColor,
+    Color toggleableActiveColor,
     String fontFamily,
     TextTheme textTheme,
     TextTheme primaryTextTheme,
@@ -113,6 +103,7 @@ class ThemeData extends Diagnosticable {
     IconThemeData primaryIconTheme,
     IconThemeData accentIconTheme,
     SliderThemeData sliderTheme,
+    ChipThemeData chipTheme,
     TargetPlatform platform,
   }) {
     brightness ??= Brightness.light;
@@ -123,6 +114,7 @@ class ThemeData extends Diagnosticable {
     primaryColorLight ??= isDark ? Colors.grey[500] : primarySwatch[100];
     primaryColorDark ??= isDark ? Colors.black : primarySwatch[700];
     final bool primaryIsDark = primaryColorBrightness == Brightness.dark;
+    toggleableActiveColor ??= isDark ? Colors.tealAccent[200] : (accentColor ?? primarySwatch[600]);
     accentColor ??= isDark ? Colors.tealAccent[200] : primarySwatch[500];
     accentColorBrightness ??= estimateBrightnessForColor(accentColor);
     final bool accentIsDark = accentColorBrightness == Brightness.dark;
@@ -154,9 +146,12 @@ class ThemeData extends Diagnosticable {
     accentIconTheme ??= accentIsDark ? const IconThemeData(color: Colors.white) : const IconThemeData(color: Colors.black);
     platform ??= defaultTargetPlatform;
     final Typography typography = new Typography(platform: platform);
-    textTheme ??= isDark ? typography.white : typography.black;
-    primaryTextTheme ??= primaryIsDark ? typography.white : typography.black;
-    accentTextTheme ??= accentIsDark ? typography.white : typography.black;
+    final TextTheme defaultTextTheme = isDark ? typography.white : typography.black;
+    textTheme = defaultTextTheme.merge(textTheme);
+    final TextTheme defaultPrimaryTextTheme = primaryIsDark ? typography.white : typography.black;
+    primaryTextTheme = defaultPrimaryTextTheme.merge(primaryTextTheme);
+    final TextTheme defaultAccentTextTheme = accentIsDark ? typography.white : typography.black;
+    accentTextTheme = defaultAccentTextTheme.merge(accentTextTheme);
     if (fontFamily != null) {
       textTheme = textTheme.apply(fontFamily: fontFamily);
       primaryTextTheme = primaryTextTheme.apply(fontFamily: fontFamily);
@@ -167,6 +162,11 @@ class ThemeData extends Diagnosticable {
       primaryColorLight: primaryColorLight,
       primaryColorDark: primaryColorDark,
       valueIndicatorTextStyle: accentTextTheme.body2,
+    );
+    chipTheme ??= new ChipThemeData.fromDefaults(
+      secondaryColor: primaryColor,
+      brightness: brightness,
+      labelStyle: textTheme.body2,
     );
     return new ThemeData.raw(
       brightness: brightness,
@@ -188,6 +188,7 @@ class ThemeData extends Diagnosticable {
       unselectedWidgetColor: unselectedWidgetColor,
       disabledColor: disabledColor,
       buttonColor: buttonColor,
+      toggleableActiveColor: toggleableActiveColor,
       buttonTheme: buttonTheme,
       secondaryHeaderColor: secondaryHeaderColor,
       textSelectionColor: textSelectionColor,
@@ -205,6 +206,7 @@ class ThemeData extends Diagnosticable {
       primaryIconTheme: primaryIconTheme,
       accentIconTheme: accentIconTheme,
       sliderTheme: sliderTheme,
+      chipTheme: chipTheme,
       platform: platform,
     );
   }
@@ -244,6 +246,7 @@ class ThemeData extends Diagnosticable {
     @required this.indicatorColor,
     @required this.hintColor,
     @required this.errorColor,
+    @required this.toggleableActiveColor,
     @required this.textTheme,
     @required this.primaryTextTheme,
     @required this.accentTextTheme,
@@ -252,6 +255,7 @@ class ThemeData extends Diagnosticable {
     @required this.primaryIconTheme,
     @required this.accentIconTheme,
     @required this.sliderTheme,
+    @required this.chipTheme,
     @required this.platform,
   }) : assert(brightness != null),
        assert(primaryColor != null),
@@ -271,6 +275,7 @@ class ThemeData extends Diagnosticable {
        assert(selectedRowColor != null),
        assert(unselectedWidgetColor != null),
        assert(disabledColor != null),
+       assert(toggleableActiveColor != null),
        assert(buttonTheme != null),
        assert(secondaryHeaderColor != null),
        assert(textSelectionColor != null),
@@ -288,6 +293,7 @@ class ThemeData extends Diagnosticable {
        assert(primaryIconTheme != null),
        assert(accentIconTheme != null),
        assert(sliderTheme != null),
+       assert(chipTheme != null),
        assert(platform != null);
 
   /// A default light blue theme.
@@ -401,6 +407,10 @@ class ThemeData extends Diagnosticable {
   /// The default fill color of the [Material] used in [RaisedButton]s.
   final Color buttonColor;
 
+  /// The color used to highlight the active states of toggleable widgets like
+  /// [Switch], [Radio], and [Checkbox].
+  final Color toggleableActiveColor;
+
   /// Defines the default configuration of button widgets, like [RaisedButton]
   /// and [FlatButton].
   final ButtonThemeData buttonTheme;
@@ -463,6 +473,11 @@ class ThemeData extends Diagnosticable {
   /// This is the value returned from [SliderTheme.of].
   final SliderThemeData sliderTheme;
 
+  /// The colors and styles used to render [Chip], [
+  ///
+  /// This is the value returned from [ChipTheme.of].
+  final ChipThemeData chipTheme;
+
   /// The platform the material widgets should adapt to target.
   ///
   /// Defaults to the current platform.
@@ -498,6 +513,7 @@ class ThemeData extends Diagnosticable {
     Color indicatorColor,
     Color hintColor,
     Color errorColor,
+    Color toggleableActiveColor,
     TextTheme textTheme,
     TextTheme primaryTextTheme,
     TextTheme accentTextTheme,
@@ -506,6 +522,7 @@ class ThemeData extends Diagnosticable {
     IconThemeData primaryIconTheme,
     IconThemeData accentIconTheme,
     SliderThemeData sliderTheme,
+    ChipThemeData chipTheme,
     TargetPlatform platform,
   }) {
     return new ThemeData.raw(
@@ -537,6 +554,7 @@ class ThemeData extends Diagnosticable {
       indicatorColor: indicatorColor ?? this.indicatorColor,
       hintColor: hintColor ?? this.hintColor,
       errorColor: errorColor ?? this.errorColor,
+      toggleableActiveColor: toggleableActiveColor ?? this.toggleableActiveColor,
       textTheme: textTheme ?? this.textTheme,
       primaryTextTheme: primaryTextTheme ?? this.primaryTextTheme,
       accentTextTheme: accentTextTheme ?? this.accentTextTheme,
@@ -545,6 +563,7 @@ class ThemeData extends Diagnosticable {
       primaryIconTheme: primaryIconTheme ?? this.primaryIconTheme,
       accentIconTheme: accentIconTheme ?? this.accentIconTheme,
       sliderTheme: sliderTheme ?? this.sliderTheme,
+      chipTheme: chipTheme ?? this.chipTheme,
       platform: platform ?? this.platform,
     );
   }
@@ -607,7 +626,7 @@ class ThemeData extends Diagnosticable {
     // more towards using light text than WCAG20 recommends. Material Design spec
     // doesn't say what value to use, but 0.15 seemed close to what the Material
     // Design spec shows for its color palette on
-    // <https://material.io/guidelines/style/color.html#color-color-palette>.
+    // <https://material.io/go/design-theming#color-color-palette>.
     const double kThreshold = 0.15;
     if ((relativeLuminance + 0.05) * (relativeLuminance + 0.05) > kThreshold)
       return Brightness.light;
@@ -662,6 +681,7 @@ class ThemeData extends Diagnosticable {
       indicatorColor: Color.lerp(a.indicatorColor, b.indicatorColor, t),
       hintColor: Color.lerp(a.hintColor, b.hintColor, t),
       errorColor: Color.lerp(a.errorColor, b.errorColor, t),
+      toggleableActiveColor: Color.lerp(a.toggleableActiveColor, b.toggleableActiveColor, t),
       textTheme: TextTheme.lerp(a.textTheme, b.textTheme, t),
       primaryTextTheme: TextTheme.lerp(a.primaryTextTheme, b.primaryTextTheme, t),
       accentTextTheme: TextTheme.lerp(a.accentTextTheme, b.accentTextTheme, t),
@@ -670,6 +690,7 @@ class ThemeData extends Diagnosticable {
       primaryIconTheme: IconThemeData.lerp(a.primaryIconTheme, b.primaryIconTheme, t),
       accentIconTheme: IconThemeData.lerp(a.accentIconTheme, b.accentIconTheme, t),
       sliderTheme: SliderThemeData.lerp(a.sliderTheme, b.sliderTheme, t),
+      chipTheme: ChipThemeData.lerp(a.chipTheme, b.chipTheme, t),
       platform: t < 0.5 ? a.platform : b.platform,
     );
   }
@@ -694,6 +715,7 @@ class ThemeData extends Diagnosticable {
            (otherData.unselectedWidgetColor == unselectedWidgetColor) &&
            (otherData.disabledColor == disabledColor) &&
            (otherData.buttonColor == buttonColor) &&
+           (otherData.toggleableActiveColor == toggleableActiveColor) &&
            (otherData.buttonTheme == buttonTheme) &&
            (otherData.secondaryHeaderColor == secondaryHeaderColor) &&
            (otherData.textSelectionColor == textSelectionColor) &&
@@ -713,6 +735,7 @@ class ThemeData extends Diagnosticable {
            (otherData.primaryIconTheme == primaryIconTheme) &&
            (otherData.accentIconTheme == accentIconTheme) &&
            (otherData.sliderTheme == sliderTheme) &&
+           (otherData.chipTheme == chipTheme) &&
            (otherData.platform == platform);
   }
 
@@ -739,6 +762,7 @@ class ThemeData extends Diagnosticable {
       textSelectionColor,
       textSelectionHandleColor,
       hashValues(  // Too many values.
+        toggleableActiveColor,
         backgroundColor,
         accentColor,
         accentColorBrightness,
@@ -754,6 +778,7 @@ class ThemeData extends Diagnosticable {
         primaryIconTheme,
         accentIconTheme,
         sliderTheme,
+        chipTheme,
         platform,
       ),
     );
@@ -788,6 +813,7 @@ class ThemeData extends Diagnosticable {
     properties.add(new DiagnosticsProperty<Color>('indicatorColor', indicatorColor, defaultValue: defaultData.indicatorColor));
     properties.add(new DiagnosticsProperty<Color>('hintColor', hintColor, defaultValue: defaultData.hintColor));
     properties.add(new DiagnosticsProperty<Color>('errorColor', errorColor, defaultValue: defaultData.errorColor));
+    properties.add(new DiagnosticsProperty<Color>('toggleableActiveColor', toggleableActiveColor, defaultValue: defaultData.toggleableActiveColor));
     properties.add(new DiagnosticsProperty<ButtonThemeData>('buttonTheme', buttonTheme));
     properties.add(new DiagnosticsProperty<TextTheme>('textTheme', textTheme));
     properties.add(new DiagnosticsProperty<TextTheme>('primaryTextTheme', primaryTextTheme));
@@ -797,6 +823,7 @@ class ThemeData extends Diagnosticable {
     properties.add(new DiagnosticsProperty<IconThemeData>('primaryIconTheme', primaryIconTheme));
     properties.add(new DiagnosticsProperty<IconThemeData>('accentIconTheme', accentIconTheme));
     properties.add(new DiagnosticsProperty<SliderThemeData>('sliderTheme', sliderTheme));
+    properties.add(new DiagnosticsProperty<ChipThemeData>('chipTheme', chipTheme));
   }
 }
 
