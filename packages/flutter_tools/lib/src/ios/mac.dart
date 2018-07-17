@@ -11,6 +11,7 @@ import '../application_package.dart';
 import '../base/common.dart';
 import '../base/context.dart';
 import '../base/file_system.dart';
+import '../base/fingerprint.dart';
 import '../base/io.dart';
 import '../base/logger.dart';
 import '../base/os.dart';
@@ -19,7 +20,7 @@ import '../base/process.dart';
 import '../base/process_manager.dart';
 import '../base/utils.dart';
 import '../build_info.dart';
-import '../flx.dart' as flx;
+import '../flutter_manifest.dart';
 import '../globals.dart';
 import '../plugins.dart';
 import '../services.dart';
@@ -30,26 +31,9 @@ import 'xcodeproj.dart';
 const int kXcodeRequiredVersionMajor = 9;
 const int kXcodeRequiredVersionMinor = 0;
 
-// The Python `six` module is a dependency for Xcode builds, and installed by
-// default, but may not be present in custom Python installs; e.g., via
-// Homebrew.
-const PythonModule kPythonSix = const PythonModule('six');
-
 IMobileDevice get iMobileDevice => context[IMobileDevice];
 
 Xcode get xcode => context[Xcode];
-
-class PythonModule {
-  const PythonModule(this.name);
-
-  final String name;
-
-  bool get isInstalled => exitsHappy(<String>['python', '-c', 'import $name']);
-
-  String get errorMessage =>
-    'Missing Xcode dependency: Python module "$name".\n'
-    'Install via \'pip install $name\' or \'sudo easy_install $name\'.';
-}
 
 class IMobileDevice {
   const IMobileDevice();
@@ -98,7 +82,7 @@ class IMobileDevice {
   Future<Process> startLogger() => runCommand(<String>['idevicesyslog']);
 
   /// Captures a screenshot to the specified outputFile.
-  Future<Null> takeScreenshot(File outputFile) {
+  Future<void> takeScreenshot(File outputFile) {
     return runCheckedAsync(<String>['idevicescreenshot', outputFile.path]);
   }
 }
@@ -175,26 +159,29 @@ class Xcode {
       return minorVersion >= kXcodeRequiredVersionMinor;
     return false;
   }
+
+  Future<RunResult> cc(List<String> args) {
+    return runCheckedAsync(<String>['xcrun', 'cc']..addAll(args));
+  }
+
+  Future<RunResult> clang(List<String> args) {
+    return runCheckedAsync(<String>['xcrun', 'clang']..addAll(args));
+  }
 }
 
 Future<XcodeBuildResult> buildXcodeProject({
   BuildableIOSApp app,
   BuildInfo buildInfo,
-  String target: flx.defaultMainPath,
+  String targetOverride,
   bool buildForDevice,
-  bool codesign: true,
-  bool usesTerminalUi: true,
+  bool codesign = true,
+  bool usesTerminalUi = true,
 }) async {
-  if (!await upgradePbxProjWithFlutterAssets(app.name))
+  if (!await upgradePbxProjWithFlutterAssets(app.name, app.appDirectory))
     return new XcodeBuildResult(success: false);
 
   if (!_checkXcodeVersion())
     return new XcodeBuildResult(success: false);
-
-  if (!kPythonSix.isInstalled) {
-    printError(kPythonSix.errorMessage);
-    return new XcodeBuildResult(success: false);
-  }
 
   final XcodeProjectInfo projectInfo = xcodeProjectInterpreter.getInfo(app.appDirectory);
   if (!projectInfo.targets.contains('Runner')) {
@@ -233,96 +220,46 @@ Future<XcodeBuildResult> buildXcodeProject({
   // copied over to a location that is suitable for Xcodebuild to find them.
   final Directory appDirectory = fs.directory(app.appDirectory);
   await _addServicesToBundle(appDirectory);
-  final String previousGeneratedXcconfig = readGeneratedXcconfig(app.appDirectory);
 
+  final FlutterManifest manifest = await FlutterManifest.createFromPath(
+    fs.currentDirectory.childFile('pubspec.yaml').path,
+  );
   updateGeneratedXcodeProperties(
     projectPath: fs.currentDirectory.path,
     buildInfo: buildInfo,
-    target: target,
+    targetOverride: targetOverride,
     previewDart2: buildInfo.previewDart2,
+    manifest: manifest,
   );
 
   if (hasPlugins()) {
-    final String currentGeneratedXcconfig = readGeneratedXcconfig(app.appDirectory);
-    await cocoaPods.processPods(
+    final String iosPath = fs.path.join(fs.currentDirectory.path, app.appDirectory);
+    // If the Xcode project, Podfile, or Generated.xcconfig have changed since
+    // last run, pods should be updated.
+    final Fingerprinter fingerprinter = new Fingerprinter(
+      fingerprintPath: fs.path.join(getIosBuildDirectory(), 'pod_inputs.fingerprint'),
+      paths: <String>[
+        _getPbxProjPath(app.appDirectory),
+        fs.path.join(iosPath, 'Podfile'),
+        fs.path.join(iosPath, 'Flutter', 'Generated.xcconfig'),
+      ],
+      properties: <String, String>{},
+    );
+    final bool didPodInstall = await cocoaPods.processPods(
       appIosDirectory: appDirectory,
       iosEngineDir: flutterFrameworkDir(buildInfo.mode),
       isSwift: app.isSwift,
-      flutterPodChanged: previousGeneratedXcconfig != currentGeneratedXcconfig,
+      dependenciesChanged: !await fingerprinter.doesFingerprintMatch()
     );
-  }
-
-  // If buildNumber is not specified, keep the project untouched.
-  if (buildInfo.buildNumber != null) {
-    final Status buildNumberStatus =
-        logger.startProgress('Setting CFBundleVersion...', expectSlowOperation: true);
-    try {
-      final RunResult buildNumberResult = await runAsync(
-        <String>[
-          '/usr/bin/env',
-          'xcrun',
-          'agvtool',
-          'new-version',
-          '-all',
-          buildInfo.buildNumber.toString(),
-        ],
-        workingDirectory: app.appDirectory,
-      );
-      if (buildNumberResult.exitCode != 0) {
-        throwToolExit('Xcode failed to set new version\n${buildNumberResult.stderr}');
-      }
-    } finally {
-      buildNumberStatus.stop();
-    }
-  }
-
-  // If buildName is not specified, keep the project untouched.
-  if (buildInfo.buildName != null) {
-    final Status buildNameStatus =
-        logger.startProgress('Setting CFBundleShortVersionString...', expectSlowOperation: true);
-    try {
-      final RunResult buildNameResult = await runAsync(
-        <String>[
-          '/usr/bin/env',
-          'xcrun',
-          'agvtool',
-          'new-marketing-version',
-          buildInfo.buildName,
-        ],
-        workingDirectory: app.appDirectory,
-      );
-      if (buildNameResult.exitCode != 0) {
-        throwToolExit('Xcode failed to set new marketing version\n${buildNameResult.stderr}');
-      }
-    } finally {
-      buildNameStatus.stop();
-    }
-  }
-
-  final Status cleanStatus =
-      logger.startProgress('Running Xcode clean...', expectSlowOperation: true);
-  final RunResult cleanResult = await runAsync(
-    <String>[
-      '/usr/bin/env',
-      'xcrun',
-      'xcodebuild',
-      'clean',
-      '-configuration', configuration,
-    ],
-    workingDirectory: app.appDirectory,
-  );
-  cleanStatus.stop();
-  if (cleanResult.exitCode != 0) {
-    throwToolExit('Xcode failed to clean\n${cleanResult.stderr}');
+    if (didPodInstall)
+      await fingerprinter.writeFingerprint();
   }
 
   final List<String> buildCommands = <String>[
     '/usr/bin/env',
     'xcrun',
     'xcodebuild',
-    'build',
     '-configuration', configuration,
-    'ONLY_ACTIVE_ARCH=YES',
   ];
 
   if (logger.isVerbose) {
@@ -355,7 +292,7 @@ Future<XcodeBuildResult> buildXcodeProject({
   }
 
   if (buildForDevice) {
-    buildCommands.addAll(<String>['-sdk', 'iphoneos', '-arch', 'arm64']);
+    buildCommands.addAll(<String>['-sdk', 'iphoneos']);
   } else {
     buildCommands.addAll(<String>['-sdk', 'iphonesimulator', '-arch', 'x86_64']);
   }
@@ -436,7 +373,7 @@ Future<XcodeBuildResult> buildXcodeProject({
             '-allowProvisioningUpdates',
             '-allowProvisioningDeviceRegistration',
           ].contains(buildCommand);
-        }),
+        }).toList(),
     workingDirectory: app.appDirectory,
   ));
 
@@ -516,7 +453,7 @@ Future<Null> diagnoseXcodeBuildFailure(XcodeBuildResult result) async {
   }
   if (result.xcodeBuildExecution != null &&
       result.xcodeBuildExecution.buildForPhysicalDevice &&
-      result.xcodeBuildExecution.buildSettings['PRODUCT_BUNDLE_IDENTIFIER'].contains('com.example')) {
+      result.xcodeBuildExecution.buildSettings['PRODUCT_BUNDLE_IDENTIFIER']?.contains('com.example') == true) {
     printError('');
     printError('It appears that your application still contains the default signing identifier.');
     printError("Try replacing 'com.example' with your signing id in Xcode:");
@@ -624,6 +561,9 @@ Future<Null> _copyServiceFrameworks(List<Map<String, String>> services, Director
   }
 }
 
+/// The path of the Xcode project file.
+String _getPbxProjPath(String appPath) => fs.path.join(fs.currentDirectory.path, appPath, 'Runner.xcodeproj', 'project.pbxproj');
+
 void _copyServiceDefinitionsManifest(List<Map<String, String>> services, File manifest) {
   printTrace("Creating service definitions manifest at '${manifest.path}'");
   final List<Map<String, String>> jsonServices = services.map((Map<String, String> service) => <String, String>{
@@ -633,12 +573,11 @@ void _copyServiceDefinitionsManifest(List<Map<String, String>> services, File ma
     'framework': fs.path.basenameWithoutExtension(service['ios-framework'])
   }).toList();
   final Map<String, dynamic> jsonObject = <String, dynamic>{ 'services' : jsonServices };
-  manifest.writeAsStringSync(json.encode(jsonObject), mode: FileMode.WRITE, flush: true);
+  manifest.writeAsStringSync(json.encode(jsonObject), mode: FileMode.WRITE, flush: true); // ignore: deprecated_member_use
 }
 
-Future<bool> upgradePbxProjWithFlutterAssets(String app) async {
-  final File xcodeProjectFile = fs.file(fs.path.join('ios', 'Runner.xcodeproj',
-                                                     'project.pbxproj'));
+Future<bool> upgradePbxProjWithFlutterAssets(String app, String appPath) async {
+  final File xcodeProjectFile = fs.file(_getPbxProjPath(appPath));
   assert(await xcodeProjectFile.exists());
   final List<String> lines = await xcodeProjectFile.readAsLines();
 
@@ -661,7 +600,7 @@ Future<bool> upgradePbxProjWithFlutterAssets(String app) async {
   if (!lines.contains(l1) || !lines.contains(l3) ||
       !lines.contains(l5) || !lines.contains(l7)) {
     printError('Automatic upgrade of project.pbxproj failed.');
-    printError(' To manually upgrade, open ios/Runner.xcodeproj/project.pbxproj:');
+    printError(' To manually upgrade, open ${xcodeProjectFile.path}:');
     printError(' Add the following line in the "PBXBuildFile" section');
     printError(l2);
     printError(' Add the following line in the "PBXFileReference" section');

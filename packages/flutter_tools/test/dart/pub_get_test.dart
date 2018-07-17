@@ -162,9 +162,9 @@ class MockProcessManager implements ProcessManager {
     List<dynamic> command, {
     String workingDirectory,
     Map<String, String> environment,
-    bool includeParentEnvironment: true,
-    bool runInShell: false,
-    ProcessStartMode mode: ProcessStartMode.NORMAL,
+    bool includeParentEnvironment = true,
+    bool runInShell = false,
+    ProcessStartMode mode = ProcessStartMode.NORMAL, // ignore: deprecated_member_use
   }) {
     lastPubEnvironment = environment['PUB_ENVIRONMENT'];
     lastPubCache = environment['PUB_CACHE'];
@@ -221,7 +221,9 @@ class MockStreamSubscription<T> implements StreamSubscription<T> {
 }
 
 
-class MockFileSystem extends MemoryFileSystem {
+class MockFileSystem extends ForwardingFileSystem {
+  MockFileSystem() : super(new MemoryFileSystem());
+
   @override
   File file(dynamic path) {
     return new MockFile();
@@ -235,7 +237,7 @@ class MockFileSystem extends MemoryFileSystem {
 
 class MockFile implements File {
   @override
-  Future<RandomAccessFile> open({FileMode mode: FileMode.READ}) async {
+  Future<RandomAccessFile> open({FileMode mode = FileMode.READ}) async { // ignore: deprecated_member_use
     return new MockRandomAccessFile();
   }
 

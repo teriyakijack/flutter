@@ -150,20 +150,16 @@ void _defineTests() {
             children: <TestSemantics>[
               new TestSemantics(
                 id: 3,
-                nextNodeId: 4,
-                previousNodeId: 2,
                 label: 'background',
                 rect: new Rect.fromLTRB(1.0, 1.0, 2.0, 2.0),
               ),
               new TestSemantics(
                 id: 2,
-                nextNodeId: 3,
                 label: 'Hello',
                 rect: new Rect.fromLTRB(0.0, 0.0, 800.0, 600.0),
               ),
               new TestSemantics(
                 id: 4,
-                previousNodeId: 3,
                 label: 'foreground',
                 rect: new Rect.fromLTRB(1.0, 1.0, 2.0, 2.0),
               ),
@@ -353,7 +349,8 @@ void _defineTests() {
     ));
 
     final Set<SemanticsAction> allActions = SemanticsAction.values.values.toSet()
-      ..remove(SemanticsAction.showOnScreen); // showOnScreen is non user-exposed.
+      ..remove(SemanticsAction.customAction) // customAction is not user-exposed.
+      ..remove(SemanticsAction.showOnScreen); // showOnScreen is not user-exposed.
 
     const int expectedId = 2;
     final TestSemantics expectedSemantics = new TestSemantics.root(
@@ -410,12 +407,15 @@ void _defineTests() {
             enabled: true,
             checked: true,
             selected: true,
+            hidden: true,
             button: true,
             textField: true,
             focused: true,
             inMutuallyExclusiveGroup: true,
             header: true,
             obscured: true,
+            scopesRoute: true,
+            namesRoute: true,
           ),
         ),
       ),

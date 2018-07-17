@@ -3,6 +3,7 @@
 // found in the LICENSE file.
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 
 import 'button_theme.dart';
@@ -11,6 +12,7 @@ import 'constants.dart';
 import 'ink_well.dart';
 import 'material.dart';
 import 'theme.dart';
+import 'theme_data.dart';
 
 /// Creates a button based on [Semantics], [Material], and [InkWell]
 /// widgets.
@@ -35,15 +37,17 @@ class RawMaterialButton extends StatefulWidget {
     this.fillColor,
     this.highlightColor,
     this.splashColor,
-    this.elevation: 2.0,
-    this.highlightElevation: 8.0,
-    this.disabledElevation: 0.0,
-    this.padding: EdgeInsets.zero,
-    this.constraints: const BoxConstraints(minWidth: 88.0, minHeight: 36.0),
-    this.shape: const RoundedRectangleBorder(),
-    this.animationDuration: kThemeChangeDuration,
+    this.elevation = 2.0,
+    this.highlightElevation = 8.0,
+    this.disabledElevation = 0.0,
+    this.padding = EdgeInsets.zero,
+    this.constraints = const BoxConstraints(minWidth: 88.0, minHeight: 36.0),
+    this.shape = const RoundedRectangleBorder(),
+    this.animationDuration = kThemeChangeDuration,
+    MaterialTapTargetSize materialTapTargetSize,
     this.child,
-  }) : assert(shape != null),
+  }) : this.materialTapTargetSize = materialTapTargetSize ?? MaterialTapTargetSize.padded,
+       assert(shape != null),
        assert(elevation != null),
        assert(highlightElevation != null),
        assert(disabledElevation != null),
@@ -133,6 +137,15 @@ class RawMaterialButton extends StatefulWidget {
   /// property to a non-null value.
   bool get enabled => onPressed != null;
 
+  /// Configures the minimum size of the tap target.
+  ///
+  /// Defaults to [MaterialTapTargetSize.padded].
+  ///
+  /// See also:
+  ///
+  ///   * [MaterialTapTargetSize], for a description of how this affects tap targets.
+  final MaterialTapTargetSize materialTapTargetSize;
+
   @override
   _RawMaterialButtonState createState() => new _RawMaterialButtonState();
 }
@@ -153,38 +166,57 @@ class _RawMaterialButtonState extends State<RawMaterialButton> {
       ? (_highlight ? widget.highlightElevation : widget.elevation)
       : widget.disabledElevation;
 
-    return new Semantics(
-      container: true,
-      button: true,
-      enabled: widget.enabled,
-      child: new ConstrainedBox(
-        constraints: widget.constraints,
-        child: new Material(
-          elevation: elevation,
-          textStyle: widget.textStyle,
-          shape: widget.shape,
-          color: widget.fillColor,
-          type: widget.fillColor == null ? MaterialType.transparency : MaterialType.button,
-          animationDuration: widget.animationDuration,
-          child: new InkWell(
-            onHighlightChanged: _handleHighlightChanged,
-            splashColor: widget.splashColor,
-            highlightColor: widget.highlightColor,
-            onTap: widget.onPressed,
-            child: IconTheme.merge(
-              data: new IconThemeData(color: widget.textStyle?.color),
-              child: new Container(
-                padding: widget.padding,
-                child: new Center(
-                  widthFactor: 1.0,
-                  heightFactor: 1.0,
-                  child: widget.child,
-                ),
+    Widget result = new ConstrainedBox(
+      constraints: widget.constraints,
+      child: new Material(
+        elevation: elevation,
+        textStyle: widget.textStyle,
+        shape: widget.shape,
+        color: widget.fillColor,
+        type: widget.fillColor == null ? MaterialType.transparency : MaterialType.button,
+        animationDuration: widget.animationDuration,
+        child: new InkWell(
+          onHighlightChanged: _handleHighlightChanged,
+          splashColor: widget.splashColor,
+          highlightColor: widget.highlightColor,
+          onTap: widget.onPressed,
+          child: IconTheme.merge(
+            data: new IconThemeData(color: widget.textStyle?.color),
+            child: new Container(
+              padding: widget.padding,
+              child: new Center(
+                widthFactor: 1.0,
+                heightFactor: 1.0,
+                child: widget.child,
               ),
             ),
           ),
         ),
       ),
+    );
+    BoxConstraints constraints;
+    switch (widget.materialTapTargetSize) {
+      case MaterialTapTargetSize.padded:
+        constraints = const BoxConstraints(minWidth: 48.0, minHeight: 48.0);
+        break;
+      case MaterialTapTargetSize.shrinkWrap:
+        constraints = const BoxConstraints();
+        break;
+    }
+    result = new _ButtonRedirectingHitDetectionWidget(
+      constraints: constraints,
+      child: new Center(
+        child: result,
+        widthFactor: 1.0,
+        heightFactor: 1.0,
+      ),
+    );
+
+    return new Semantics(
+      container: true,
+      button: true,
+      enabled: widget.enabled,
+      child: result,
     );
   }
 }
@@ -229,6 +261,7 @@ class MaterialButton extends StatelessWidget {
     this.minWidth,
     this.height,
     this.padding,
+    this.materialTapTargetSize,
     @required this.onPressed,
     this.child
   }) : super(key: key);
@@ -334,6 +367,15 @@ class MaterialButton extends StatelessWidget {
   /// {@macro flutter.widgets.child}
   final Widget child;
 
+  /// Configures the minimum size of the tap target.
+  ///
+  /// Defaults to [ThemeData.materialTapTargetSize].
+  ///
+  /// See also:
+  ///
+  ///   * [MaterialTapTargetSize], for a description of how this affects tap targets.
+  final MaterialTapTargetSize materialTapTargetSize;
+
   /// Whether the button is enabled or disabled. Buttons are disabled by default. To
   /// enable a button, set its [onPressed] property to a non-null value.
   bool get enabled => onPressed != null;
@@ -393,6 +435,7 @@ class MaterialButton extends StatelessWidget {
       ),
       shape: buttonTheme.shape,
       child: child,
+      materialTapTargetSize: materialTapTargetSize ?? theme.materialTapTargetSize,
     );
   }
 
@@ -400,5 +443,43 @@ class MaterialButton extends StatelessWidget {
   void debugFillProperties(DiagnosticPropertiesBuilder properties) {
     super.debugFillProperties(properties);
     properties.add(new FlagProperty('enabled', value: enabled, ifFalse: 'disabled'));
+  }
+}
+
+/// Redirects the position passed to [RenderBox.hitTest] to the center of the
+/// widget if the child hit test would have failed otherwise.
+///
+/// The primary purpose of this widget is to allow padding around [Material] widgets
+/// to trigger the child ink feature without increasing the size of the material.
+class _ButtonRedirectingHitDetectionWidget extends SingleChildRenderObjectWidget {
+  const _ButtonRedirectingHitDetectionWidget({
+    Key key,
+    Widget child,
+    this.constraints
+  }) : super(key: key, child: child);
+
+  final BoxConstraints constraints;
+
+  @override
+  RenderObject createRenderObject(BuildContext context) {
+    return new _RenderButtonRedirectingHitDetection(constraints);
+  }
+
+  @override
+  void updateRenderObject(BuildContext context, covariant _RenderButtonRedirectingHitDetection renderObject) {
+    renderObject.additionalConstraints = constraints;
+  }
+}
+
+class _RenderButtonRedirectingHitDetection extends RenderConstrainedBox {
+  _RenderButtonRedirectingHitDetection (BoxConstraints additionalConstraints) : super(additionalConstraints: additionalConstraints);
+
+  @override
+  bool hitTest(HitTestResult result, {Offset position}) {
+    if (!size.contains(position))
+      return false;
+    if (child.hitTest(result, position: position))
+      return true;
+    return child.hitTest(result, position: size.center(Offset.zero));
   }
 }

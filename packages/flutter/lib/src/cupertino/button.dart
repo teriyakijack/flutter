@@ -15,8 +15,9 @@ const Color _kDisabledForeground = const Color(0xFFC4C4C4);
 const TextStyle _kButtonTextStyle = const TextStyle(
   fontFamily: '.SF UI Text',
   inherit: false,
-  fontSize: 15.0,
-  fontWeight: FontWeight.normal,
+  fontSize: 17.5,
+  letterSpacing: -0.24,
+  fontWeight: FontWeight.w400,
   color: CupertinoColors.activeBlue,
   textBaseline: TextBaseline.alphabetic,
 );
@@ -31,7 +32,7 @@ final TextStyle _kBackgroundButtonTextStyle = _kButtonTextStyle.copyWith(
 
 const EdgeInsets _kButtonPadding = const EdgeInsets.all(16.0);
 const EdgeInsets _kBackgroundButtonPadding = const EdgeInsets.symmetric(
-  vertical: 16.0,
+  vertical: 14.0,
   horizontal: 64.0,
 );
 
@@ -49,9 +50,10 @@ class CupertinoButton extends StatefulWidget {
     @required this.child,
     this.padding,
     this.color,
-    this.minSize: 44.0,
-    this.pressedOpacity: 0.1,
-    this.borderRadius: const BorderRadius.all(const Radius.circular(8.0)),
+    this.disabledColor,
+    this.minSize = 44.0,
+    this.pressedOpacity = 0.1,
+    this.borderRadius = const BorderRadius.all(const Radius.circular(8.0)),
     @required this.onPressed,
   }) : assert(pressedOpacity == null || (pressedOpacity >= 0.0 && pressedOpacity <= 1.0));
 
@@ -69,6 +71,14 @@ class CupertinoButton extends StatefulWidget {
   ///
   /// Defaults to null which produces a button with no background or border.
   final Color color;
+
+  /// The color of the button's background when the button is disabled.
+  ///
+  /// Ignored if the [CupertinoButton] doesn't also have a [color].
+  ///
+  /// Defaults to a standard iOS disabled color when [color] is specified and
+  /// [disabledColor] is null.
+  final Color disabledColor;
 
   /// The callback that is called when the button is tapped or otherwise activated.
   ///
@@ -215,7 +225,7 @@ class _CupertinoButtonState extends State<CupertinoButton> with SingleTickerProv
               decoration: new BoxDecoration(
                 borderRadius: widget.borderRadius,
                 color: backgroundColor != null && !enabled
-                  ? _kDisabledBackground
+                  ? widget.disabledColor ?? _kDisabledBackground
                   : backgroundColor,
               ),
               child: new Padding(

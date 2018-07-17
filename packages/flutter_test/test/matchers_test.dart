@@ -2,8 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+import 'dart:typed_data';
 import 'dart:ui';
 
+import 'package:flutter/rendering.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 /// Class that makes it easy to mock common toStringDeep behavior.
@@ -28,7 +31,7 @@ class _MockToStringDeep {
   /// line break.
   List<String> _lines;
 
-  String toStringDeep({ String prefixLineOne: '', String prefixOtherLines: '' }) {
+  String toStringDeep({ String prefixLineOne = '', String prefixOtherLines = '' }) {
     final StringBuffer sb = new StringBuffer();
     if (_lines.isNotEmpty)
       sb.write('$prefixLineOne${_lines.first}');
@@ -288,4 +291,231 @@ void main() {
       );
     });
   });
+
+  group('matchesGoldenFile', () {
+    _FakeComparator comparator;
+
+    Widget boilerplate(Widget child) {
+      return new Directionality(
+        textDirection: TextDirection.ltr,
+        child: child,
+      );
+    }
+
+    setUp(() {
+      comparator = new _FakeComparator();
+      goldenFileComparator = comparator;
+    });
+
+    group('matches', () {
+      testWidgets('if comparator succeeds', (WidgetTester tester) async {
+        await tester.pumpWidget(boilerplate(const Text('hello')));
+        final Finder finder = find.byType(Text);
+        await expectLater(finder, matchesGoldenFile('foo.png'));
+        expect(comparator.invocation, _ComparatorInvocation.compare);
+        expect(comparator.imageBytes, hasLength(greaterThan(0)));
+        expect(comparator.golden, Uri.parse('foo.png'));
+      });
+    });
+
+    group('does not match', () {
+      testWidgets('if comparator returns false', (WidgetTester tester) async {
+        comparator.behavior = _ComparatorBehavior.returnFalse;
+        await tester.pumpWidget(boilerplate(const Text('hello')));
+        final Finder finder = find.byType(Text);
+        try {
+          await expectLater(finder, matchesGoldenFile('foo.png'));
+          fail('TestFailure expected but not thrown');
+        } on TestFailure catch (error) {
+          expect(comparator.invocation, _ComparatorInvocation.compare);
+          expect(error.message, contains('does not match'));
+        }
+      });
+
+      testWidgets('if comparator throws', (WidgetTester tester) async {
+        comparator.behavior = _ComparatorBehavior.throwTestFailure;
+        await tester.pumpWidget(boilerplate(const Text('hello')));
+        final Finder finder = find.byType(Text);
+        try {
+          await expectLater(finder, matchesGoldenFile('foo.png'));
+          fail('TestFailure expected but not thrown');
+        } on TestFailure catch (error) {
+          expect(comparator.invocation, _ComparatorInvocation.compare);
+          expect(error.message, contains('fake message'));
+        }
+      });
+
+      testWidgets('if finder finds no widgets', (WidgetTester tester) async {
+        await tester.pumpWidget(boilerplate(new Container()));
+        final Finder finder = find.byType(Text);
+        try {
+          await expectLater(finder, matchesGoldenFile('foo.png'));
+          fail('TestFailure expected but not thrown');
+        } on TestFailure catch (error) {
+          expect(comparator.invocation, isNull);
+          expect(error.message, contains('no widget was found'));
+        }
+      });
+
+      testWidgets('if finder finds multiple widgets', (WidgetTester tester) async {
+        await tester.pumpWidget(boilerplate(new Column(
+          children: const <Widget>[const Text('hello'), const Text('world')],
+        )));
+        final Finder finder = find.byType(Text);
+        try {
+          await expectLater(finder, matchesGoldenFile('foo.png'));
+          fail('TestFailure expected but not thrown');
+        } on TestFailure catch (error) {
+          expect(comparator.invocation, isNull);
+          expect(error.message, contains('too many widgets'));
+        }
+      });
+    });
+
+    testWidgets('calls update on comparator if autoUpdateGoldenFiles is true', (WidgetTester tester) async {
+      autoUpdateGoldenFiles = true;
+      await tester.pumpWidget(boilerplate(const Text('hello')));
+      final Finder finder = find.byType(Text);
+      await expectLater(finder, matchesGoldenFile('foo.png'));
+      expect(comparator.invocation, _ComparatorInvocation.update);
+      expect(comparator.imageBytes, hasLength(greaterThan(0)));
+      expect(comparator.golden, Uri.parse('foo.png'));
+      autoUpdateGoldenFiles = false;
+    });
+  });
+
+  group('matchesSemanticsData', () {
+    testWidgets('matches SemanticsData', (WidgetTester tester) async {
+      final SemanticsHandle handle = tester.ensureSemantics();
+      const Key key = const Key('semantics');
+      await tester.pumpWidget(new Semantics(
+        key: key,
+        namesRoute: true,
+        header: true,
+        button: true,
+        onTap: () {},
+        label: 'foo',
+        hint: 'bar',
+        value: 'baz',
+        textDirection: TextDirection.rtl,
+      ));
+
+      expect(tester.getSemanticsData(find.byKey(key)),
+        matchesSemanticsData(
+          label: 'foo',
+          hint: 'bar',
+          value: 'baz',
+          textDirection: TextDirection.rtl,
+          hasTapAction: true,
+          isButton: true,
+          isHeader: true,
+          namesRoute: true,
+        ),
+      );
+      handle.dispose();
+    });
+
+    testWidgets('Can match all semantics flags and actions', (WidgetTester tester) async {
+      int actions = 0;
+      int flags = 0;
+      for (int index in SemanticsAction.values.keys)
+        actions |= index;
+      for (int index in SemanticsFlag.values.keys)
+        flags |= index;
+      final SemanticsData data = new SemanticsData(
+        flags: flags,
+        actions: actions,
+        label: '',
+        increasedValue: '',
+        value: '',
+        decreasedValue: '',
+        hint: '',
+        textDirection: TextDirection.ltr,
+        rect: Rect.fromLTRB(0.0, 0.0, 10.0, 10.0),
+        textSelection: null,
+        scrollPosition: null,
+        scrollExtentMax: null,
+        scrollExtentMin: null,
+      );
+
+      expect(data, matchesSemanticsData(
+         /* Flags */
+         hasCheckedState: true,
+         isChecked: true,
+         isSelected: true,
+         isButton: true,
+         isTextField: true,
+         hasEnabledState: true,
+         isFocused: true,
+         isEnabled: true,
+         isInMutuallyExclusiveGroup: true,
+         isHeader: true,
+         isObscured: true,
+         namesRoute: true,
+         scopesRoute: true,
+         isHidden: true,
+         /* Actions */
+         hasTapAction: true,
+         hasLongPressAction: true,
+         hasScrollLeftAction: true,
+         hasScrollRightAction: true,
+         hasScrollUpAction: true,
+         hasScrollDownAction: true,
+         hasIncreaseAction: true,
+         hasDecreaseAction: true,
+         hasShowOnScreenAction: true,
+         hasMoveCursorForwardByCharacterAction: true,
+         hasMoveCursorBackwardByCharacterAction: true,
+         hasSetSelectionAction: true,
+         hasCopyAction: true,
+         hasCutAction: true,
+         hasPasteAction: true,
+         hasDidGainAccessibilityFocusAction: true,
+         hasDidLoseAccessibilityFocusAction: true,
+         hasCustomAction: true,
+      ));
+    });
+  });
+}
+
+enum _ComparatorBehavior {
+  returnTrue,
+  returnFalse,
+  throwTestFailure,
+}
+
+enum _ComparatorInvocation {
+  compare,
+  update,
+}
+
+class _FakeComparator implements GoldenFileComparator {
+  _ComparatorBehavior behavior = _ComparatorBehavior.returnTrue;
+  _ComparatorInvocation invocation;
+  Uint8List imageBytes;
+  Uri golden;
+
+  @override
+  Future<bool> compare(Uint8List imageBytes, Uri golden) {
+    invocation = _ComparatorInvocation.compare;
+    this.imageBytes = imageBytes;
+    this.golden = golden;
+    switch (behavior) {
+      case _ComparatorBehavior.returnTrue:
+        return new Future<bool>.value(true);
+      case _ComparatorBehavior.returnFalse:
+        return new Future<bool>.value(false);
+      case _ComparatorBehavior.throwTestFailure:
+        throw new TestFailure('fake message');
+    }
+    return new Future<bool>.value(false);
+  }
+
+  @override
+  Future<void> update(Uri golden, Uint8List imageBytes) {
+    invocation = _ComparatorInvocation.update;
+    this.golden = golden;
+    this.imageBytes = imageBytes;
+    return new Future<void>.value();
+  }
 }

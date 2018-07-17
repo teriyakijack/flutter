@@ -2,13 +2,43 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+import 'dart:async';
+
+import 'package:file/memory.dart';
 import 'package:flutter_tools/src/android/gradle.dart';
+import 'package:flutter_tools/src/artifacts.dart';
 import 'package:flutter_tools/src/base/file_system.dart';
 import 'package:flutter_tools/src/build_info.dart';
+import 'package:flutter_tools/src/flutter_manifest.dart';
+import 'package:flutter_tools/src/ios/xcodeproj.dart';
+import 'package:mockito/mockito.dart';
+import 'package:platform/platform.dart';
+import 'package:process/process.dart';
 import 'package:test/test.dart';
+
+import '../src/common.dart';
+import '../src/context.dart';
 
 void main() {
   group('gradle build', () {
+    test('do not crash if there is no Android SDK', () async {
+      Exception shouldBeToolExit;
+      try {
+        // We'd like to always set androidSdk to null and test updateLocalProperties. But that's
+        // currently impossible as the test is not hermetic. Luckily, our bots don't have Android
+        // SDKs yet so androidSdk should be null by default.
+        //
+        // This test is written to fail if our bots get Android SDKs in the future: shouldBeToolExit
+        // will be null and our expectation would fail. That would remind us to make these tests
+        // hermetic before adding Android SDKs to the bots.
+        await updateLocalProperties();
+      } on Exception catch (e) {
+        shouldBeToolExit = e;
+      }
+      // Ensure that we throw a meaningful ToolExit instead of a general crash.
+      expect(shouldBeToolExit, isToolExit);
+    });
+
     test('regexp should only match lines without the error message', () {
       final List<String> nonMatchingLines = <String>[
         'NDK is missing a "platforms" directory.',
@@ -106,4 +136,207 @@ someOtherProperty: someOtherValue
       expect(project.assembleTaskFor(const BuildInfo(BuildMode.release, 'unknown')), isNull);
     });
   });
+
+  group('Gradle local.properties', () {
+    MockLocalEngineArtifacts mockArtifacts;
+    MockProcessManager mockProcessManager;
+    FakePlatform android;
+    FileSystem fs;
+
+    setUp(() {
+      fs = new MemoryFileSystem();
+      mockArtifacts = new MockLocalEngineArtifacts();
+      mockProcessManager = new MockProcessManager();
+      android = fakePlatform('android');
+    });
+
+    void testUsingAndroidContext(String description, dynamic testMethod()) {
+      testUsingContext(description, testMethod, overrides: <Type, Generator>{
+        Artifacts: () => mockArtifacts,
+        ProcessManager: () => mockProcessManager,
+        Platform: () => android,
+        FileSystem: () => fs,
+      });
+    }
+
+    String propertyFor(String key, File file) {
+      return file
+          .readAsLinesSync()
+          .where((String line) => line.startsWith('$key='))
+          .map((String line) => line.split('=')[1])
+          .first;
+    }
+
+    Future<void> checkBuildVersion({
+      String manifest,
+      BuildInfo buildInfo,
+      String expectedBuildName,
+      String expectedBuildNumber,
+    }) async {
+      when(mockArtifacts.getArtifactPath(Artifact.flutterFramework, TargetPlatform.android_arm, any)).thenReturn('engine');
+      when(mockArtifacts.engineOutPath).thenReturn(fs.path.join('out', 'android_arm'));
+
+      final File manifestFile = fs.file('path/to/project/pubspec.yaml');
+      manifestFile.createSync(recursive: true);
+      manifestFile.writeAsStringSync(manifest);
+
+      // write schemaData otherwise pubspec.yaml file can't be loaded
+      const String schemaData = '{}';
+      writeSchemaFile(fs, schemaData);
+
+      try {
+        await updateLocalProperties(projectPath: 'path/to/project', buildInfo: buildInfo);
+
+        final File localPropertiesFile = fs.file('path/to/project/android/local.properties');
+        expect(propertyFor('flutter.versionName', localPropertiesFile), expectedBuildName);
+        expect(propertyFor('flutter.versionCode', localPropertiesFile), expectedBuildNumber);
+      } on Exception {
+        // Android SDK not found, skip test
+      }
+    }
+
+    testUsingAndroidContext('extract build name and number from pubspec.yaml', () async {
+      const String manifest = '''
+name: test
+version: 1.0.0+1
+dependencies:
+  flutter:
+    sdk: flutter
+flutter:
+''';
+
+      const BuildInfo buildInfo = const BuildInfo(BuildMode.release, null);
+      await checkBuildVersion(
+        manifest: manifest,
+        buildInfo: buildInfo,
+        expectedBuildName: '1.0.0',
+        expectedBuildNumber: '1',
+      );
+    });
+
+    testUsingAndroidContext('extract build name from pubspec.yaml', () async {
+      const String manifest = '''
+name: test
+version: 1.0.0
+dependencies:
+  flutter:
+    sdk: flutter
+flutter:
+''';
+      const BuildInfo buildInfo = const BuildInfo(BuildMode.release, null);
+      await checkBuildVersion(
+        manifest: manifest,
+        buildInfo: buildInfo,
+        expectedBuildName: '1.0.0',
+        expectedBuildNumber: null,
+      );
+    });
+
+    testUsingAndroidContext('allow build info to override build name', () async {
+      const String manifest = '''
+name: test
+version: 1.0.0+1
+dependencies:
+  flutter:
+    sdk: flutter
+flutter:
+''';
+      const BuildInfo buildInfo = const BuildInfo(BuildMode.release, null, buildName: '1.0.2');
+      await checkBuildVersion(
+        manifest: manifest,
+        buildInfo: buildInfo,
+        expectedBuildName: '1.0.2',
+        expectedBuildNumber: '1',
+      );
+    });
+
+    testUsingAndroidContext('allow build info to override build number', () async {
+      const String manifest = '''
+name: test
+version: 1.0.0+1
+dependencies:
+  flutter:
+    sdk: flutter
+flutter:
+''';
+      const BuildInfo buildInfo = const BuildInfo(BuildMode.release, null, buildNumber: 3);
+      await checkBuildVersion(
+        manifest: manifest,
+        buildInfo: buildInfo,
+        expectedBuildName: '1.0.0',
+        expectedBuildNumber: '3',
+      );
+    });
+
+    testUsingAndroidContext('allow build info to override build name and number', () async {
+      const String manifest = '''
+name: test
+version: 1.0.0+1
+dependencies:
+  flutter:
+    sdk: flutter
+flutter:
+''';
+      const BuildInfo buildInfo = const BuildInfo(BuildMode.release, null, buildName: '1.0.2', buildNumber: 3);
+      await checkBuildVersion(
+        manifest: manifest,
+        buildInfo: buildInfo,
+        expectedBuildName: '1.0.2',
+        expectedBuildNumber: '3',
+      );
+    });
+
+    testUsingAndroidContext('allow build info to override build name and set number', () async {
+      const String manifest = '''
+name: test
+version: 1.0.0
+dependencies:
+  flutter:
+    sdk: flutter
+flutter:
+''';
+      const BuildInfo buildInfo = const BuildInfo(BuildMode.release, null, buildName: '1.0.2', buildNumber: 3);
+      await checkBuildVersion(
+        manifest: manifest,
+        buildInfo: buildInfo,
+        expectedBuildName: '1.0.2',
+        expectedBuildNumber: '3',
+      );
+    });
+
+    testUsingAndroidContext('allow build info to set build name and number', () async {
+      const String manifest = '''
+name: test
+dependencies:
+  flutter:
+    sdk: flutter
+flutter:
+''';
+      const BuildInfo buildInfo = const BuildInfo(BuildMode.release, null, buildName: '1.0.2', buildNumber: 3);
+      await checkBuildVersion(
+        manifest: manifest,
+        buildInfo: buildInfo,
+        expectedBuildName: '1.0.2',
+        expectedBuildNumber: '3',
+      );
+    });
+  });
 }
+
+void writeSchemaFile(FileSystem filesystem, String schemaData) {
+  final String schemaPath = buildSchemaPath(filesystem);
+  final File schemaFile = filesystem.file(schemaPath);
+
+  final String schemaDir = buildSchemaDir(filesystem);
+
+  filesystem.directory(schemaDir).createSync(recursive: true);
+  filesystem.file(schemaFile).writeAsStringSync(schemaData);
+}
+
+Platform fakePlatform(String name) {
+  return new FakePlatform.fromPlatform(const LocalPlatform())..operatingSystem = name;
+}
+
+class MockLocalEngineArtifacts extends Mock implements LocalEngineArtifacts {}
+class MockProcessManager extends Mock implements ProcessManager {}
+class MockXcodeProjectInterpreter extends Mock implements XcodeProjectInterpreter {}

@@ -8,6 +8,7 @@ import 'dart:io';
 /// Sanity checking of the @foo metadata in the English translations,
 /// material_en.arb.
 ///
+/// - For each foo, resource, there must be a corresponding @foo.
 /// - For each @foo resource, there must be a corresponding foo, except
 ///   for plurals, for which there must be a fooOther.
 /// - Each @foo resource must have a Map value with a String valued
@@ -23,12 +24,31 @@ String validateEnglishLocalizations(File file) {
   }
 
   final Map<String, dynamic> bundle = json.decode(file.readAsStringSync());
+
+  for (String resourceId in bundle.keys) {
+    if (resourceId.startsWith('@'))
+      continue;
+
+    if (bundle['@$resourceId'] != null)
+      continue;
+
+    bool checkPluralResource(String suffix) {
+      final int suffixIndex = resourceId.indexOf(suffix);
+      return suffixIndex != -1 && bundle['@${resourceId.substring(0, suffixIndex)}'] != null;
+    }
+    if (<String>['Zero', 'One', 'Two', 'Few', 'Many', 'Other'].any(checkPluralResource))
+      continue;
+
+    errorMessages.writeln('A value was not specified for @$resourceId');
+  }
+
   for (String atResourceId in bundle.keys) {
     if (!atResourceId.startsWith('@'))
       continue;
 
     final dynamic atResourceValue = bundle[atResourceId];
-    final Map<String, String> atResource = atResourceValue is Map ? atResourceValue : null;
+    final Map<String, dynamic> atResource =
+        atResourceValue is Map<String, dynamic> ? atResourceValue : null;
     if (atResource == null) {
       errorMessages.writeln('A map value was not specified for $atResourceId');
       continue;

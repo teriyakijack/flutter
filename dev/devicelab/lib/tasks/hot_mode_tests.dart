@@ -16,7 +16,7 @@ import '../framework/utils.dart';
 final Directory _editedFlutterGalleryDir = dir(path.join(Directory.systemTemp.path, 'edited_flutter_gallery'));
 final Directory flutterGalleryDir = dir(path.join(flutterDirectory.path, 'examples/flutter_gallery'));
 
-TaskFunction createHotModeTest({ bool isPreviewDart2: true }) {
+TaskFunction createHotModeTest({ bool isPreviewDart2 = true }) {
   return () async {
     final Device device = await devices.workingDevice;
     await device.unlock();
@@ -142,6 +142,7 @@ TaskFunction createHotModeTest({ bool isPreviewDart2: true }) {
         'hotReloadDevFSSyncMilliseconds': twoReloadsData['hotReloadDevFSSyncMilliseconds'][0],
         'hotReloadFlutterReassembleMilliseconds': twoReloadsData['hotReloadFlutterReassembleMilliseconds'][0],
         'hotReloadVMReloadMilliseconds': twoReloadsData['hotReloadVMReloadMilliseconds'][0],
+        'hotReloadMillisecondsToFrameAfterChange' : twoReloadsData['hotReloadMillisecondsToFrame'][1],
         'hotReloadDevFSSyncMillisecondsAfterChange': twoReloadsData['hotReloadDevFSSyncMilliseconds'][1],
         'hotReloadFlutterReassembleMillisecondsAfterChange': twoReloadsData['hotReloadFlutterReassembleMilliseconds'][1],
         'hotReloadVMReloadMillisecondsAfterChange': twoReloadsData['hotReloadVMReloadMilliseconds'][1],
@@ -154,6 +155,7 @@ TaskFunction createHotModeTest({ bool isPreviewDart2: true }) {
         'hotReloadDevFSSyncMilliseconds',
         'hotReloadFlutterReassembleMilliseconds',
         'hotReloadVMReloadMilliseconds',
+        'hotReloadMillisecondsToFrameAfterChange',
         'hotReloadDevFSSyncMillisecondsAfterChange',
         'hotReloadFlutterReassembleMillisecondsAfterChange',
         'hotReloadVMReloadMillisecondsAfterChange',

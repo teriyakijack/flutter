@@ -16,13 +16,15 @@ void main() {
     'es', // Spanish
     'fa', // Farsi (Persian)
     'fr', // French
+    'gsw', // Swiss German
     'he', // Hebrew
     'id', // Indonesian
     'it', // Italian
     'ja', // Japanese
     'ko', // Korean
+    'ms', // Malay
     'nl', // Dutch
-    'no', // Norwegian
+    'nb', // Norwegian
     'pl', // Polish
     'ps', // Pashto
     'pt', // Portugese
@@ -31,6 +33,7 @@ void main() {
     'th', // Thai
     'tr', // Turkish
     'ur', // Urdu
+    'vi', // Vietnamese
     'zh', // Chinese (simplified)
   ];
 
@@ -61,6 +64,10 @@ void main() {
       expect(localizations.pasteButtonLabel, isNotNull);
       expect(localizations.selectAllButtonLabel, isNotNull);
       expect(localizations.viewLicensesButtonLabel, isNotNull);
+      expect(localizations.drawerLabel, isNotNull);
+      expect(localizations.popupMenuLabel, isNotNull);
+      expect(localizations.dialogLabel, isNotNull);
+      expect(localizations.alertDialogLabel, isNotNull);
 
       expect(localizations.aboutListTileTitle('FOO'), isNotNull);
       expect(localizations.aboutListTileTitle('FOO'), contains('FOO'));

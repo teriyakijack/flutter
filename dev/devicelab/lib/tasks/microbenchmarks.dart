@@ -14,7 +14,7 @@ import 'package:flutter_devicelab/framework/ios.dart';
 import 'package:flutter_devicelab/framework/utils.dart';
 
 /// The maximum amount of time a single microbenchmark is allowed to take.
-const Duration _kBenchmarkTimeout = const Duration(minutes: 6);
+const Duration _kBenchmarkTimeout = const Duration(minutes: 10);
 
 /// Creates a device lab task that runs benchmarks in
 /// `dev/benchmarks/microbenchmarks` reports results to the dashboard.
@@ -23,7 +23,7 @@ TaskFunction createMicrobenchmarkTask() {
     final Device device = await devices.workingDevice;
     await device.unlock();
 
-    Future<Map<String, double>> _runMicrobench(String benchmarkPath, {bool previewDart2: true}) async {
+    Future<Map<String, double>> _runMicrobench(String benchmarkPath, {bool previewDart2 = true}) async {
       Future<Map<String, double>> _run() async {
         print('Running $benchmarkPath');
         final Directory appDir = dir(
@@ -74,8 +74,6 @@ TaskFunction createMicrobenchmarkTask() {
     addDart1Results(await _runMicrobench(
         'lib/stocks/layout_bench.dart', previewDart2: false));
     addDart1Results(await _runMicrobench(
-        'lib/stocks/layout_bench.dart', previewDart2: false));
-    addDart1Results(await _runMicrobench(
         'lib/stocks/build_bench.dart', previewDart2: false));
     addDart1Results(await _runMicrobench(
         'lib/gestures/velocity_tracker_bench.dart', previewDart2: false));
@@ -86,9 +84,9 @@ TaskFunction createMicrobenchmarkTask() {
 }
 
 Future<Process> _startFlutter({
-  String command: 'run',
-  List<String> options: const <String>[],
-  bool canFail: false,
+  String command = 'run',
+  List<String> options = const <String>[],
+  bool canFail = false,
   Map<String, String> environment,
 }) {
   final List<String> args = <String>['run']..addAll(options);
@@ -112,6 +110,7 @@ Future<Map<String, double>> _readJsonResults(Process process) {
       });
 
   bool processWasKilledIntentionally = false;
+  bool resultsHaveBeenParsed = false;
   final StreamSubscription<String> stdoutSub = process.stdout
       .transform(const Utf8Decoder())
       .transform(const LineSplitter())
@@ -124,20 +123,44 @@ Future<Map<String, double>> _readJsonResults(Process process) {
     }
 
     if (line.contains(jsonEnd)) {
+      final String jsonOutput = jsonBuf.toString();
+
+      // If we end up here and have already parsed the results, it suggests that
+      // we have recieved output from another test because our `flutter run`
+      // process did not terminate correctly.
+      // https://github.com/flutter/flutter/issues/19096#issuecomment-402756549
+      if (resultsHaveBeenParsed) {
+        throw 'Additional JSON was received after results has already been '
+              'processed. This suggests the `flutter run` process may have lived '
+              'past the end of our test and collected additional output from the '
+              'next test.\n\n'
+              'The JSON below contains all collected output, including both from '
+              'the original test and what followed.\n\n'
+              '$jsonOutput';
+      }
+
       jsonStarted = false;
       processWasKilledIntentionally = true;
+      resultsHaveBeenParsed = true;
+      // ignore: deprecated_member_use
       process.kill(ProcessSignal.SIGINT); // flutter run doesn't quit automatically
-      completer.complete(json.decode(jsonBuf.toString()));
+      try {
+        completer.complete(new Map<String, double>.from(json.decode(jsonOutput)));
+      } catch (ex) {
+        completer.completeError('Decoding JSON failed ($ex). JSON string was: $jsonOutput');
+      }
       return;
     }
 
-    if (jsonStarted)
+    if (jsonStarted && line.contains(jsonPrefix))
       jsonBuf.writeln(line.substring(line.indexOf(jsonPrefix) + jsonPrefix.length));
   });
 
-  process.exitCode.then<int>((int code) {
-    stdoutSub.cancel();
-    stderrSub.cancel();
+  process.exitCode.then<int>((int code) async {
+    await Future.wait<void>(<Future<void>>[
+      stdoutSub.cancel(),
+      stderrSub.cancel(),
+    ]);
     if (!processWasKilledIntentionally && code != 0) {
       completer.completeError('flutter run failed: exit code=$code');
     }

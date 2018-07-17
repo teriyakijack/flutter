@@ -2,7 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'bottom_tab_bar.dart';
 
@@ -71,6 +70,11 @@ import 'bottom_tab_bar.dart';
 ///   },
 /// )
 /// ```
+///
+/// To push a route above all tabs instead of inside the currently selected one
+/// (such as when showing a dialog on top of this scaffold), use
+/// `Navigator.of(rootNavigator: true)` from inside the [BuildContext] of a
+/// [CupertinoTabView].
 ///
 /// See also:
 ///

@@ -3,7 +3,8 @@
 // found in the LICENSE file.
 
 import 'dart:async';
-import 'dart:ui' as ui show Image, ColorFilter;
+import 'dart:typed_data';
+import 'dart:ui' as ui show Image, ImageByteFormat, ColorFilter;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/painting.dart';
@@ -87,6 +88,11 @@ class TestImage implements ui.Image {
 
   @override
   void dispose() { }
+
+  @override
+  Future<ByteData> toByteData({ui.ImageByteFormat format}) async {
+    throw new UnsupportedError('Cannot encode test image');
+  }
 }
 
 void main() {
@@ -149,7 +155,7 @@ void main() {
   // Regression test for https://github.com/flutter/flutter/issues/7289.
   // A reference test would be better.
   test('BoxDecoration backgroundImage clip', () {
-    void testDecoration({ BoxShape shape: BoxShape.rectangle, BorderRadius borderRadius, bool expectClip}) {
+    void testDecoration({ BoxShape shape = BoxShape.rectangle, BorderRadius borderRadius, bool expectClip}) {
       assert(shape != null);
       new FakeAsync().run((FakeAsync async) {
         final DelayedImageProvider imageProvider = new DelayedImageProvider();

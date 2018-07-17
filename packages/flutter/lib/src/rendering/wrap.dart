@@ -109,14 +109,14 @@ class RenderWrap extends RenderBox with ContainerRenderObjectMixin<RenderBox, Wr
   /// runs are aligned to the start.
   RenderWrap({
     List<RenderBox> children,
-    Axis direction: Axis.horizontal,
-    WrapAlignment alignment: WrapAlignment.start,
-    double spacing: 0.0,
-    WrapAlignment runAlignment: WrapAlignment.start,
-    double runSpacing: 0.0,
-    WrapCrossAlignment crossAxisAlignment: WrapCrossAlignment.start,
+    Axis direction = Axis.horizontal,
+    WrapAlignment alignment = WrapAlignment.start,
+    double spacing = 0.0,
+    WrapAlignment runAlignment = WrapAlignment.start,
+    double runSpacing = 0.0,
+    WrapCrossAlignment crossAxisAlignment = WrapCrossAlignment.start,
     TextDirection textDirection,
-    VerticalDirection verticalDirection: VerticalDirection.down,
+    VerticalDirection verticalDirection = VerticalDirection.down,
   }) : assert(direction != null),
        assert(alignment != null),
        assert(spacing != null),
@@ -629,7 +629,9 @@ class RenderWrap extends RenderBox with ContainerRenderObjectMixin<RenderBox, Wr
     }
     if (childCount > 0) {
       mainAxisExtent = math.max(mainAxisExtent, runMainAxisExtent);
-      crossAxisExtent += runCrossAxisExtent + runSpacing;
+      crossAxisExtent += runCrossAxisExtent;
+      if (runMetrics.isNotEmpty)
+        crossAxisExtent += runSpacing;
       runMetrics.add(new _RunMetrics(runMainAxisExtent, runCrossAxisExtent, childCount));
     }
 
